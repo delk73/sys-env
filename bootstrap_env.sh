@@ -33,6 +33,14 @@ if ! command -v lazygit &> /dev/null; then
     rm -f lazygit lazygit.tar.gz
 fi
 
+# Native Package Registration for GitHub CLI
+if ! command -v gh &> /dev/null; then
+    sudo mkdir -p /etc/apt/keyrings
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/etc/apt/keyrings/githubcli-archive-keyring.gpg 2>/dev/null
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+    sudo apt update -y && sudo apt install -y gh
+fi
+
 # 4. Native Installation for Helix Text Engine
 if ! command -v hx &> /dev/null; then
     printf "[+] Fetching compiled architecture binary for Helix...\n"
