@@ -1,0 +1,10 @@
+theme = "brutalist"
+
+[editor]
+line-numbers = "relative"
+cursorline = true
+color-modes = true
+
+[editor.lsp]
+display-messages = true
+display-inlay-hints = true

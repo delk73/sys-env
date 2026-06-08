@@ -1,0 +1,13 @@
+name: precision-dev
+root: ~/src/precision-signal
+
+windows:
+  - engine:
+      layout: main-vertical
+      panes:
+        # Left Split: Spatial File Structure Radar
+        - yazi
+        # Primary Center Split: Focus Text Engine
+        - hx .
+        # Bottom Horizontal Split: Verification & Flashing Loop
+        - clear && echo "=== Hardware Pipeline Target Ready ==="
