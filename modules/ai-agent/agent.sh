@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Module Version: v1.0.0
 set -euo pipefail
 
 MODEL="gemma4:e4b"
@@ -56,6 +55,20 @@ for arg in "$@"; do
             ;;
     esac
 done
+
+# Pre-flight staging audit check for uncommitted changes
+if [ "$APPLY_PATCH" = true ]; then
+    if ! git diff-index --quiet HEAD -- > /dev/null 2>&1; then
+        echo ""
+        echo "=================================================="
+        echo "WARNING: Uncommitted modifications detected in working directory."
+        read -r -p "Do you wish to proceed despite uncommitted changes? (y/N): " preflight_confirm < /dev/tty
+        if [[ ! "$preflight_confirm" =~ ^[Yy]$ ]]; then
+            echo "Operation aborted by user due to uncommitted changes."
+            exit 1
+        fi
+    fi
+fi
 
 INPUT_CONTEXT=""
 # Read from standard input pipe if data is present
@@ -131,7 +144,8 @@ if [ "$APPLY_PATCH" = true ]; then
     if [[ "$confirmation" =~ ^[Yy]$ ]]; then
         echo ""
         echo "Applying patch via git..."
-        echo "$ASSISTANT_OUT" | git apply --reject -
+        # Appending --recount forces git to re-calculate hunk metadata dynamically, bypasses structural line errors
+        echo "$ASSISTANT_OUT" | git apply --recount --reject -
         echo "Patch application step completed."
     else
         echo ""
