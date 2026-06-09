@@ -1,7 +1,7 @@
 theme = "brutalist"
 
 [editor]
-line-numbers = "relative"
+line-number = "relative"
 cursorline = true
 color-modes = true
 
