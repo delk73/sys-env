@@ -56,6 +56,26 @@ for arg in "$@"; do
     esac
 done
 
+# Provenance Log Append Subroutine
+log_provenance() {
+    local status="$1"
+    local commit_hash
+    commit_hash=$(git rev-parse HEAD 2>/dev/null || echo "non-git")
+    
+    # Generate structured entry via jq to guarantee valid JSON formatting
+    jq -n \
+      --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
+      --arg commit "$commit_hash" \
+      --arg target "$TARGET_FILE" \
+      --arg prompt "$USER_PROMPT" \
+      --arg status "$status" \
+      --arg sys "$SYSTEM_ROLE" \
+      --arg vectors "$SEMANTIC_CONTEXT" \
+      --arg patch "$ASSISTANT_OUT" \
+      '{timestamp: $ts, commit_before: $commit, target_file: $target, user_prompt: $prompt, system_role: $sys, vector_context: ($vectors | fromjson? // $vectors), status: $status, patch_output: $patch}' \
+      >> ".agent_provenance.jsonl"
+}
+
 # Pre-flight staging audit check for uncommitted changes
 if [ "$APPLY_PATCH" = true ]; then
     if ! git diff-index --quiet HEAD -- > /dev/null 2>&1; then
@@ -65,18 +85,20 @@ if [ "$APPLY_PATCH" = true ]; then
         read -r -p "Do you wish to proceed despite uncommitted changes? (y/N): " preflight_confirm < /dev/tty
         if [[ ! "$preflight_confirm" =~ ^[Yy]$ ]]; then
             echo "Operation aborted by user due to uncommitted changes."
+            SYSTEM_ROLE="disabled"
+            SEMANTIC_CONTEXT="[]"
+            ASSISTANT_OUT=""
+            log_provenance "aborted_preflight"
             exit 1
         fi
     fi
 fi
 
 INPUT_CONTEXT=""
-# Read from standard input pipe if data is present
 if [ ! -t 0 ]; then
     INPUT_CONTEXT=$(cat)
 fi
 
-# Read direct file target if passed as an argument instead of standard input redirect
 if [ -n "$TARGET_FILE" ] && [ -z "$INPUT_CONTEXT" ]; then
     INPUT_CONTEXT=$(cat "$TARGET_FILE")
 fi
@@ -86,10 +108,10 @@ if [ -z "$USER_PROMPT" ] && [ -z "$INPUT_CONTEXT" ]; then
 fi
 
 # Semantic Retrieval Hook
-SEMANTIC_CONTEXT=""
+SEMANTIC_CONTEXT="[]"
 if [ -f ".repo_vectors.hnsw" ] && [ -n "$USER_PROMPT" ]; then
     if [ -x "$SCRIPT_DIR/vector_store.py" ]; then
-        SEMANTIC_CONTEXT=$("$VENV_PYTHON" "$SCRIPT_DIR/vector_store.py" --search "$USER_PROMPT" 2>/dev/null || echo "")
+        SEMANTIC_CONTEXT=$("$VENV_PYTHON" "$SCRIPT_DIR/vector_store.py" --search "$USER_PROMPT" 2>/dev/null || echo "[]")
     fi
 fi
 
@@ -144,13 +166,15 @@ if [ "$APPLY_PATCH" = true ]; then
     if [[ "$confirmation" =~ ^[Yy]$ ]]; then
         echo ""
         echo "Applying patch via git..."
-        # Appending --recount forces git to re-calculate hunk metadata dynamically, bypasses structural line errors
         echo "$ASSISTANT_OUT" | git apply --recount --reject -
         echo "Patch application step completed."
+        log_provenance "applied"
     else
         echo ""
         echo "Patch application cancelled by user."
+        log_provenance "rejected"
     fi
 else
     echo "$ASSISTANT_OUT"
+    log_provenance "query_viewed"
 fi
