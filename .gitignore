@@ -1,0 +1,6 @@
+
+# Local AI Agent State & Index Artifacts
+.repo_vectors.db
+.repo_vectors.hnsw
+.agent_history.json
+*.rej
