@@ -1,6 +1,10 @@
 
-# Local AI Agent State & Index Artifacts
+# Local AI Agent State Files
+.agent_history.json
+modules/ai-agent/.agent_history.json
+.agent_provenance.jsonl
+modules/ai-agent/.agent_provenance.jsonl
+
+# Local Vector and Database Stores
 .repo_vectors.db
 .repo_vectors.hnsw
-.agent_history.json
-*.rej
