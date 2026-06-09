@@ -48,3 +48,9 @@ echo "Pulling local VRAM-optimized model weights (Gemma 4 E4B)..."
 ollama pull gemma4:e4b
 
 echo "=== Bootstrap Complete. Modules ready for deployment. ==="
+
+
+# Find and index all code files automatically
+find modules/ config/ -type f \( -name "*.sh" -o -name "*.py" -o -name "*.toml" \) | while read -r file; do
+    vector-store --index "$file"
+done
