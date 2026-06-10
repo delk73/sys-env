@@ -1,4 +1,4 @@
-theme = "brutalist"
+theme = "Gruvbox"
 
 [editor]
 line-number = "relative"

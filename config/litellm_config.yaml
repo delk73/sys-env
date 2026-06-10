@@ -1,8 +1,8 @@
 model_list:
   - model_name: local-reasoning
     litellm_params:
-      model: ollama/deepseek-r1:32b
-      api_base: "http://<YOUR_OLLAMA_BOX_IP>:11434"
+      model: ollama/gemma4:e4b
+      api_base: "http://127.0.0.1:11434"
       temperature: 0.0
 
   - model_name: local-gpu-dense

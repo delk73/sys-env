@@ -10,6 +10,7 @@ fi
 LITELLM_CONF_DIR="$HOME/.config/litellm"
 TMUXINATOR_CONF_DIR="$HOME/.config/tmuxinator"
 HELIX_CONF_DIR="$HOME/.config/helix"
+HELIX_VERSION="25.07.1"
 
 printf "[+] Executing environment state sync for Ubuntu 24.04...\n"
 printf "[+] Working Directory Vector: %s\n" "$REPO_ROOT"
@@ -23,16 +24,6 @@ sudo apt update -y
 sudo apt install -y \
     build-essential curl git tmux jq python3-pip moreutils software-properties-common
 
-# 3. Native Binary Fetch for Lazygit (Bypassing broken Noble PPA)
-if ! command -v lazygit &> /dev/null; then
-    printf "[+] Fetching compiled architecture binary for lazygit...\n"
-    LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | jq -r '.tag_name' | sed 's/^v//')
-    curl -Lo lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION}_Linux_x86_64.tar.gz"
-    tar -xf lazygit.tar.gz lazygit
-    sudo install lazygit /usr/local/bin/
-    rm -f lazygit lazygit.tar.gz
-fi
-
 # Native Package Registration for GitHub CLI
 if ! command -v gh &> /dev/null; then
     sudo mkdir -p /etc/apt/keyrings
@@ -41,22 +32,38 @@ if ! command -v gh &> /dev/null; then
     sudo apt update -y && sudo apt install -y gh
 fi
 
-# 4. Native Installation for Helix Text Engine
-if ! command -v hx &> /dev/null; then
-    printf "[+] Fetching compiled architecture binary for Helix...\n"
-    HELIX_VERSION=$(curl -s "https://api.github.com/repos/helix-editor/helix/releases/latest" | jq -r '.tag_name')
+# 3. Official Pre-Compiled Helix Distribution Deployment
+if ! command -v hx &> /dev/null || [[ "$(hx --version | awk '{print $2}')" != "$HELIX_VERSION" ]]; then
+    printf "[+] Deploying official pre-compiled Helix %s assets...\n" "$HELIX_VERSION"
     
-    # Download the standard Linux x86_64 tarball
-    curl -Lo helix.tar.xz "https://github.com/helix-editor/helix/releases/latest/download/helix-${HELIX_VERSION}-x86_64-linux.tar.xz"
-    tar -xf helix.tar.xz
+    DOWNLOAD_DIR=$(mktemp -d)
+    ARCH=$(dpkg --print-architecture)
     
-    # Install the runtime binary and move application assets to global shares
-    sudo install "helix-${HELIX_VERSION}-x86_64-linux/hx" /usr/local/bin/
-    sudo mkdir -p /usr/local/lib/helix
-    sudo cp -r "helix-${HELIX_VERSION}-x86_64-linux/runtime" /usr/local/lib/helix/
+    if [[ "$ARCH" == "amd64" ]]; then
+        DIR_SUFFIX="x86_64-linux"
+    else
+        DIR_SUFFIX="aarch64-linux"
+    fi
+    TARBALL="helix-$HELIX_VERSION-$DIR_SUFFIX.tar.xz"
+
+    curl -sSL -o "$DOWNLOAD_DIR/$TARBALL" "https://github.com/helix-editor/helix/releases/download/$HELIX_VERSION/$TARBALL"
+    tar -xf "$DOWNLOAD_DIR/$TARBALL" -C "$DOWNLOAD_DIR"
     
-    # Clean up local workspace artifacts
-    rm -rf "helix-${HELIX_VERSION}-x86_64-linux" helix.tar.xz
+    (
+        cd "$DOWNLOAD_DIR/helix-$HELIX_VERSION-$DIR_SUFFIX"
+        
+        sudo cp hx /usr/local/bin/hx
+        
+        # Deploy runtime to official shared path hierarchy
+        sudo mkdir -p /usr/local/share/helix
+        sudo rm -rf /usr/local/share/helix/runtime
+        sudo cp -r runtime /usr/local/share/helix/
+        
+        # Explicit permissions reset
+        sudo chmod -R a+rX /usr/local/share/helix/runtime
+    )
+    
+    rm -rf "$DOWNLOAD_DIR"
 fi
 
 # 5. Physical Bus Access (Native USB Flashing Permissions)
@@ -71,7 +78,7 @@ if ! command -v litellm &> /dev/null; then
 fi
 
 # ---------------------------------------------------------------------
-# Declarative Configuration Assembly via Heredocs
+# Declarative Configuration Assembly
 # ---------------------------------------------------------------------
 
 printf "[+] Generating unified model routing manifest...\n"
@@ -79,8 +86,8 @@ cat << 'EOF' > "$REPO_ROOT/config/litellm_config.yaml"
 model_list:
   - model_name: local-reasoning
     litellm_params:
-      model: ollama/deepseek-r1:32b
-      api_base: "http://<YOUR_OLLAMA_BOX_IP>:11434"
+      model: ollama/gemma4:e4b
+      api_base: "http://127.0.0.1:11434"
       temperature: 0.0
 
   - model_name: local-gpu-dense
@@ -97,47 +104,29 @@ model_list:
       api_version: "2024-08-01-preview"
 EOF
 
-printf "[+] Generating tmuxinator window matrix blueprint...\n"
-cat << 'EOF' > "$REPO_ROOT/config/tmuxinator.yaml"
-name: precision-dev
-root: ~/src/precision-signal
-
-windows:
-  - engine:
-      layout: main-vertical
-      panes:
-        # Left Split: Spatial File Structure Radar
-        - yazi
-        # Primary Center Split: Focus Text Engine
-        - hx .
-        # Bottom Horizontal Split: Verification & Flashing Loop
-        - clear && echo "=== Hardware Pipeline Target Ready ==="
-EOF
-
-printf "[+] Generating un-crufted helix typographical rules...\n"
-cat << 'EOF' > "$REPO_ROOT/config/helix_config.toml"
-theme = "brutalist"
-
-[editor]
-line-numbers = "relative"
-cursorline = true
-color-modes = true
-
-[editor.lsp]
-display-messages = true
-display-inlay-hints = true
-EOF
-
 # 7. Declarative Runtime Symlinking
 printf "[+] Linking configuration vectors...\n"
 ln -sf "$REPO_ROOT/config/litellm_config.yaml" "$LITELLM_CONF_DIR/config.yaml"
 ln -sf "$REPO_ROOT/config/tmuxinator.yaml" "$TMUXINATOR_CONF_DIR/workspace.yml"
 ln -sf "$REPO_ROOT/config/helix_config.toml" "$HELIX_CONF_DIR/config.toml"
 
+ln -sfn /usr/local/share/helix/runtime "$HELIX_CONF_DIR/runtime"
+
 # 8. Local Hardware Model Allocations (3060 Ti)
 if command -v ollama &> /dev/null; then
     printf "[+] Syncing 3060 Ti memory-mapped weights (Gemma 4)...\n"
     ollama pull gemma4:e4b
 fi
+
+# Terminal and Multiplexer Configuration
+if ! grep -q 'COLORTERM="truecolor"' "$HOME/.bashrc"; then
+    echo 'export COLORTERM="truecolor"' >> "$HOME/.bashrc"
+    echo 'export TERM="xterm-256color"' >> "$HOME/.bashrc"
+fi
+
+cat << 'EOF' > "$HOME/.tmux.conf"
+set -g default-terminal "xterm-256color"
+set -as terminal-features ",xterm-256color:RGB"
+EOF
 
 printf "[+] Environment state alignment complete.\n"
